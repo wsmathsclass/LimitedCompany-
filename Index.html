@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accounting Sorting Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f3f4f6;
+            overflow: hidden;
+            user-select: none;
+        }
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100vw;
+            padding: 1rem;
+        }
+        .screen.active {
+            display: flex;
+        }
+        
+        /* Basket Shape CSS */
+        .basket-container {
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.1s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-top: 40px; /* Space for the handle */
+        }
+        .basket-container:hover {
+            transform: scale(1.05);
+        }
+        .basket-container:active {
+            transform: scale(0.95);
+        }
+        
+        /* The Handle */
+        .basket-handle {
+            position: absolute;
+            top: 0;
+            width: 80px;
+            height: 60px;
+            border: 8px solid #b45309; /* amber-700 */
+            border-bottom: none;
+            border-radius: 40px 40px 0 0;
+            z-index: 1;
+        }
+
+        /* The Basket Body */
+        .basket-body {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            min-height: 140px;
+            background: repeating-linear-gradient(
+                45deg,
+                #d97706,
+                #d97706 10px,
+                #b45309 10px,
+                #b45309 20px
+            );
+            border: 4px solid #78350f;
+            border-top: 8px solid #92400e;
+            border-radius: 10px 10px 40px 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        .basket-label {
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            text-align: center;
+            color: #1f2937;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 2px solid #f59e0b;
+        }
+
+        /* Item pop animation */
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.5) translateY(20px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .item-pop {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Color transitions for the question box */
+        #active-item {
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Background Music -->
+    <!-- Using a royalty-free upbeat track from a reliable CDN -->
+    <audio id="bgm" loop>
+        <source src="https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=upbeat-pop-commercial-114633.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="screen active bg-blue-50">
+        <div class="max-w-2xl bg-white p-8 rounded-xl shadow-lg text-center">
+            <h1 class="text-3xl font-bold text-blue-800 mb-4">Accounting Sorting Challenge</h1>
+            <h2 class="text-xl font-semibold text-gray-700 mb-6">Topic: Income Statement & Retained Profits</h2>
+            
+            <div class="text-left bg-gray-50 p-6 rounded-lg mb-8 border border-gray-200">
+                <h3 class="font-bold text-lg mb-2 text-gray-800">Rules of the Game:</h3>
+                <ul class="list-disc pl-5 space-y-2 text-gray-600">
+                    <li>You have exactly <strong>1 minute</strong> to sort as many accounting items as possible.</li>
+                    <li>Click on the correct basket to place the item.</li>
+                    <li><span class="text-green-600 font-bold">+2 Marks</span> for every correct answer.</li>
+                    <li><span class="text-red-600 font-bold">-1 Mark</span> for every wrong answer.</li>
+                </ul>
+            </div>
+
+            <button onclick="startGame()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition transform hover:scale-105 text-xl">
+                Start Game
+            </button>
+            <p class="text-xs text-gray-400 mt-4">🎵 Background music will start automatically.</p>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen bg-gray-100">
+        <!-- Header: Timer and Score -->
+        <div class="absolute top-0 w-full p-4 flex justify-between items-center max-w-5xl mx-auto z-10">
+            <div class="bg-white px-6 py-2 rounded-full shadow font-bold text-xl text-gray-700 flex items-center gap-2">
+                ⏱️ Time: <span id="timer" class="text-blue-600 w-8 text-center">60</span>s
+            </div>
+            <button onclick="toggleMute()" id="mute-btn" class="bg-white p-2 rounded-full shadow text-xl hover:bg-gray-100">
+                🔊
+            </button>
+            <div class="bg-white px-6 py-2 rounded-full shadow font-bold text-xl text-gray-700 flex items-center gap-2">
+                ⭐ Score: <span id="score" class="text-green-600 w-8 text-center">0</span>
+            </div>
+        </div>
+
+        <!-- Active Item Display -->
+        <div class="flex-1 flex items-center justify-center w-full mt-16 mb-4">
+            <div id="active-item" class="bg-white border-4 border-blue-400 shadow-xl rounded-2xl p-8 text-2xl md:text-4xl font-bold text-center text-gray-800 max-w-2xl w-full mx-4 min-h-[160px] flex items-center justify-center">
+                Loading...
+            </div>
+        </div>
+
+        <!-- Baskets -->
+        <div class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 pb-8 px-4">
+            <!-- Income Statement Basket -->
+            <div onclick="checkAnswer('income')" class="basket-container">
+                <div class="basket-handle"></div>
+                <div class="basket-body">
+                    <div class="basket-label">📄 Income Statement</div>
+                </div>
+            </div>
+            
+            <!-- Retained Profit Basket -->
+            <div onclick="checkAnswer('retained')" class="basket-container">
+                <div class="basket-handle"></div>
+                <div class="basket-body">
+                    <div class="basket-label">📈 Statement to Calculate the Retained Profit</div>
+                </div>
+            </div>
+            
+            <!-- Neither Basket -->
+            <div onclick="checkAnswer('neither')" class="basket-container">
+                <div class="basket-handle"></div>
+                <div class="basket-body">
+                    <div class="basket-label">🚫 Neither one of the statements</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- End Screen -->
+    <div id="end-screen" class="screen bg-blue-50">
+        <div class="max-w-md w-full bg-white p-8 rounded-xl shadow-2xl text-center">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Time's Up!</h1>
+            <p class="text-gray-500 mb-8">Let's see how you did.</p>
+            
+            <div class="bg-blue-50 rounded-lg p-6 mb-8 border border-blue-100">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-2">Final Score</h2>
+                <div id="final-score" class="text-6xl font-bold text-blue-600">0</div>
+            </div>
+
+            <button onclick="resetGame()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-full shadow transition transform hover:scale-105 w-full">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Expanded Question Bank
+        const questionBank = [
+            { text: "Long-term investments", answer: "neither" },
+            { text: "6% Debentures", answer: "neither" },
+            { text: "Ordinary share capital", answer: "neither" },
+            { text: "General reserve", answer: "neither" }, 
+            { text: "Retained profits from previous years", answer: "retained" },
+            { text: "Directors’ remuneration", answer: "income" },
+            { text: "Auditors’ remuneration", answer: "income" },
+            { text: "Debenture interest", answer: "income" },
+            { text: "Final ordinary dividend declared", answer: "neither" }, // Updated as requested
+            { text: "Interim ordinary dividend declared and paid", answer: "retained" },
+            { text: "The amount transferred to general reserve", answer: "retained" },
+            { text: "Share dividend", answer: "retained" }, 
+            { text: "Profits tax", answer: "income" },
+            { text: "Tax payable", answer: "neither" }, 
+            { text: "Short-term investments", answer: "neither" },
+            { text: "Property, plant and equipment", answer: "neither" },
+            { text: "Provision", answer: "neither" }
+        ];
+
+        let currentQuestions = [];
+        let score = 0;
+        let timeLeft = 60;
+        let timerInterval;
+        let currentQuestionIndex = 0;
+        let isProcessing = false; // Prevents clicking multiple times rapidly
+
+        const screens = {
+            start: document.getElementById('start-screen'),
+            game: document.getElementById('game-screen'),
+            end: document.getElementById('end-screen')
+        };
+
+        const activeItemEl = document.getElementById('active-item');
+        const scoreEl = document.getElementById('score');
+        const timerEl = document.getElementById('timer');
+        const finalScoreEl = document.getElementById('final-score');
+        const bgm = document.getElementById('bgm');
+        const muteBtn = document.getElementById('mute-btn');
+
+        function showScreen(screenName) {
+            Object.values(screens).forEach(screen => screen.classList.remove('active'));
+            screens[screenName].classList.add('active');
+        }
+
+        function shuffleArray(array) {
+            let curId = array.length;
+            while (0 !== curId) {
+                let randId = Math.floor(Math.random() * curId);
+                curId -= 1;
+                let tmp = array[curId];
+                array[curId] = array[randId];
+                array[randId] = tmp;
+            }
+            return array;
+        }
+
+        function startGame() {
+            score = 0;
+            timeLeft = 60;
+            scoreEl.innerText = score;
+            timerEl.innerText = timeLeft;
+            isProcessing = false;
+            
+            // Play Music
+            bgm.volume = 0.4;
+            bgm.play().catch(e => console.log("Audio play prevented by browser:", e));
+
+            // Prepare questions (shuffle them)
+            currentQuestions = shuffleArray([...questionBank]);
+            currentQuestionIndex = 0;
+
+            showScreen('game');
+            loadNextQuestion();
+
+            // Start Timer
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerEl.innerText = timeLeft;
+                
+                if (timeLeft <= 10) {
+                    timerEl.classList.add('text-red-600');
+                } else {
+                    timerEl.classList.remove('text-red-600');
+                }
+
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function loadNextQuestion() {
+            // Reset box colors to default
+            activeItemEl.className = "bg-white border-4 border-blue-400 shadow-xl rounded-2xl p-8 text-2xl md:text-4xl font-bold text-center text-gray-800 max-w-2xl w-full mx-4 min-h-[160px] flex items-center justify-center item-pop";
+
+            // Reshuffle if we run out of questions
+            if (currentQuestionIndex >= currentQuestions.length) {
+                currentQuestions = shuffleArray([...questionBank]);
+                currentQuestionIndex = 0;
+            }
+
+            const q = currentQuestions[currentQuestionIndex];
+            activeItemEl.innerText = q.text;
+            isProcessing = false;
+        }
+
+        function checkAnswer(selectedBasket) {
+            if (timeLeft <= 0 || isProcessing) return; 
+            isProcessing = true; // Lock input until next question loads
+
+            const correctAnswer = currentQuestions[currentQuestionIndex].answer;
+            
+            // Remove pop animation class so color transition is smooth
+            activeItemEl.classList.remove('item-pop');
+
+            if (selectedBasket === correctAnswer) {
+                // Correct: Turn Green
+                score += 2;
+                activeItemEl.className = "bg-green-500 border-4 border-green-600 shadow-xl rounded-2xl p-8 text-2xl md:text-4xl font-bold text-center text-white max-w-2xl w-full mx-4 min-h-[160px] flex items-center justify-center";
+            } else {
+                // Wrong: Turn Red
+                score -= 1;
+                activeItemEl.className = "bg-red-500 border-4 border-red-600 shadow-xl rounded-2xl p-8 text-2xl md:text-4xl font-bold text-center text-white max-w-2xl w-full mx-4 min-h-[160px] flex items-center justify-center";
+            }
+
+            scoreEl.innerText = score;
+            currentQuestionIndex++;
+            
+            // Wait 600ms so the student sees the red/green feedback, then load next
+            setTimeout(() => {
+                if (timeLeft > 0) {
+                    loadNextQuestion();
+                }
+            }, 600);
+        }
+
+        function toggleMute() {
+            bgm.muted = !bgm.muted;
+            muteBtn.innerText = bgm.muted ? "🔇" : "🔊";
+        }
+
+        function endGame() {
+            clearInterval(timerInterval);
+            finalScoreEl.innerText = score;
+            bgm.pause();
+            bgm.currentTime = 0;
+            showScreen('end');
+        }
+
+        function resetGame() {
+            showScreen('start');
+        }
+    </script>
+</body>
+</html>
